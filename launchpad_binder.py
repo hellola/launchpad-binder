@@ -13,24 +13,39 @@ colors = {
 
 class Util:
   def choose_color(self, lp):
-    x_range = range(0,9)
-    y_range = range(0,9)
+    lp.ButtonFlush()
+    color = 20
+    ev = None
+    colors = None
+    starting_color = 0
+    while ev == None:
+      colors = self.draw_color_page(lp, starting_color)
+      raw_event = lp.ButtonStateXY()
+      time.sleep(0.2)
+      if raw_event != []:
+        ev = Event(raw_event)
+        if ev.is_left() or ev.is_right():
+          if ev.is_left():
+            starting_color = 0
+          else:
+            starting_color = 64
+          ev = None
+
+    color = colors[(ev.x,ev.y)]
+    lp.LedAllOn(0)
+    return color
+  
+  def draw_color_page(self, lp, starting_color = 0):
+    x_range = range(0,8)
+    y_range = range(1,9)
+    color = starting_color 
     colors = {}
-    color = 0
     for x in x_range:
       for y in y_range:
         colors[(x,y)] = color
         lp.LedCtrlXYByCode(x,y,color)
         color += 1
-    lp.ButtonFlush()
-    time.sleep(5)
-    raw_event = lp.ButtonStateXY()
-    color = 20
-    if raw_event != []:
-      ev = Event(raw_event)
-      color = colors[(ev.x,ev.y)]
-    lp.LedAllOn(0)
-    return color
+    return colors
 
   def get_input(self, prompt):
     app = wx.App()
@@ -53,6 +68,12 @@ class Event:
   
   def print(self):
     print(f"{self.x}, {self.y}: {self.is_down()}")
+
+  def is_left(self):
+    return self.x == 2 and self.y == 0
+
+  def is_right(self):
+    return self.x == 3 and self.y == 0
 
   def is_down(self):
     return self.action_code == 127
