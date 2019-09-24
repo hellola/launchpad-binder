@@ -1,1 +1,7 @@
-{ "bindings": { "88": {"command": "quit", "color": "10"},"87": {"command": "record", "color": "20"},"86": {"command": "save", "color": "30"} } }
+{
+  "bindings": {
+    "88": { "down_command": "quit", "color": "10" },
+    "87": { "down_command": "record", "color": "20" },
+    "85": { "down_command": "save", "color": "30" }
+  }
+}

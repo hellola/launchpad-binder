@@ -33,7 +33,7 @@ class Util:
   def get_input(self, prompt):
     app = wx.App()
     frame = wx.Frame(None, -1, "launchpad_binder.py")
-    frame.SetDimensions(0,0,200,50)
+    frame.SetSize(0,0,200,50)
     dlg = wx.TextEntryDialog(frame, prompt, prompt)
     dlg.SetValue("")
     if dlg.ShowModal() == wx.ID_OK:
@@ -41,7 +41,6 @@ class Util:
     dlg.Destroy()
     return None
 
-quit = False
 class Event:
   def __init__(self, raw_event):
     if raw_event == []:
@@ -58,6 +57,9 @@ class Event:
 
   def is_released(self):
     return self.action_code == 0
+
+
+quit = False
 
 class LaunchBinder:
   EXECUTE = "execute"
@@ -83,46 +85,42 @@ class LaunchBinder:
   def is_executing(self):
     return self.state == LaunchBinder.EXECUTE
 
-  def save_bindings(self):
-    result = '{ "bindings": { '
-    for key, value in self.keys.items():
-      result += f'"{key}": {value.to_json()},'
-    result = result.strip(',')
-    result += "} }"
-
-    with open(self.config_path, "w") as write_file:
-      write_file.write(result)
-
   def new_binding(self, key):
-    binding = self.util.get_input("Your keybinding:")
+    binding = self.util.get_input("Your down keybinding:")
     if binding != None:
       key.update_command(binding)
+
+    binding = self.util.get_input("Your release keybinding:")
+    if binding != None and binding != "":
+      key.update_command(binding, key_action = "up")
+
     color = self.util.choose_color(self.lp)
     if color != None:
       color = key.update_color(color)
-    #TODO: have to save this..
 
-  def load(self):
+
+  def load_bindings(self):
     with open(self.config_path, "r") as read_file:
       self.data = json.load(read_file)
     for binding, value in self.data['bindings'].items():
       self.keys[binding] = Key(binding, value, self.executor)
   
+  def save_bindings(self, file_path = None):
+    if (file_path == None):
+      file_path = self.config_path
+    result = '{ "bindings": { '
+    for key, value in self.keys.items():
+      result += f'"{key}": {value.to_json()},'
+    result = result.strip(',')
+    result += "} }"
+    with open(file_path, "w") as write_file:
+      write_file.write(result)
+
   def show(self):
     printed = "keys:\n"
     for key in self.keys:
       printed += "\t\t" + str(self.keys[key])
     return printed
-
-  def key_for_event(self, event):
-    lookup = f"{event.x}{event.y}"
-    if lookup in self.keys:
-      return self.keys[lookup]
-    if self.is_recording():
-      new_key = Key(lookup, { "command": "", "color": "17"}, self.executor)
-      self.keys[lookup] = new_key
-      return new_key
-    return None
 
   def update(self):
     for key in self.keys.values():
@@ -142,6 +140,16 @@ class LaunchBinder:
         else:
           key.on_up()
 
+  def key_for_event(self, event):
+    lookup = f"{event.x}{event.y}"
+    if lookup in self.keys:
+      return self.keys[lookup]
+    if self.is_recording():
+      new_key = Key(lookup, { "down_command": "", "up_command": "", "color": "17"}, self.executor)
+      self.keys[lookup] = new_key
+      return new_key
+    return None
+
   def run(self):
     opened = self.lp.Open()
     if not opened:
@@ -154,13 +162,13 @@ class LaunchBinder:
       self.update()
     self.cleanup()
 
+  def reset_start(self):
+    self.lp.LedAllOn(colors["black"])
+
   def cleanup(self):
     self.lp.LedAllOn(colors["black"])
     self.lp.ButtonFlush()
     self.lp.Close()
-
-  def reset_start(self):
-    self.lp.LedAllOn(colors["black"])
 
 class Key:
   UP = 0
@@ -178,7 +186,7 @@ class Key:
     return json.dumps(self.data)
 
   def __str__(self):
-    return f"{self._x},{self._y}:\t{self.data['command']}\t{self.data['color']}"
+    return f"{self._x},{self._y}:\t{self.data['down_command']}\t{self.data['color']}"
   
   def on_down(self):
     self.state = Key.DOWN
@@ -192,10 +200,9 @@ class Key:
     if self.changed:
       self.changed = False
       if self.state == Key.UP:
-        self.last_released = True
-      if self.state == Key.DOWN and self.last_released == True:
-        self.execute()
-        self.last_released == False
+        self.execute_up()
+      if self.state == Key.DOWN:
+        self.execute_down()
 
   def x(self):
     return self._x
@@ -203,30 +210,47 @@ class Key:
   def y(self):
     return self._y
 
-  def update_command(self, command):
-    self.data['command'] = command
+  def update_command(self, command, key_action="down"):
+    if (key_action == "down"):
+      self.data['down_command'] = command
+    elif (key_action == "up"):
+      self.data['up_command'] = command
+
 
   def update_color(self, color):
     self.data['color'] = color
 
   def command(self):
-    return self.data['command']
+    return self.data['down_command']
+
+  def down_command(self):
+    return self.data['down_command']
+
+  def up_command(self):
+    if 'up_command' in self.data:
+      return self.data['up_command']
+    return None
   
   def color(self):
     return int(self.data['color'])
 
-  def execute(self):
-    ran = self.executor.execute(self)
+  def execute_up(self):
+    ran = self.executor.execute(self.up_command(), self)
     return ran
+  
+  def execute_down(self):
+    ran = self.executor.execute(self.down_command(), self)
 
 
 class Executor:
   def __init__(self, binder):
     self.binder = binder
 
-  def execute(self, key):
-    command = key.command()
+  def execute(self, command, key):
     global quit
+    if command == None:
+      return
+
     if command == "quit":
       print("quitting..")
       quit = True
@@ -246,8 +270,14 @@ class Executor:
 parser = argparse.ArgumentParser(description='Start the binding service')
 parser.add_argument('--bindings-file', type=str, help='the location of the stored bindings file', default="bindings.json")
 args = parser.parse_args()
+try:
 
-binder = LaunchBinder(args.bindings_file)
-binder.load()
-binder.run()
+  binder = LaunchBinder(args.bindings_file)
+  binder.load_bindings()
+  binder.run()
+except:
+  binder.save_bindings("temp.json")
+  print("exception occurred, attempted to store bindings to temp.json")
+  raise
+
     
