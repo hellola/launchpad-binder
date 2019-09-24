@@ -2,6 +2,8 @@ import launchpad_py
 import wx
 import json
 import os
+import subprocess
+import shlex
 import time
 import argparse
 
@@ -145,7 +147,7 @@ class LaunchBinder:
     if lookup in self.keys:
       return self.keys[lookup]
     if self.is_recording():
-      new_key = Key(lookup, { "down_command": "", "up_command": "", "color": "17"}, self.executor)
+      new_key = Key(lookup, { "down_command": "#new", "up_command": "echo \"new\"", "color": "17"}, self.executor)
       self.keys[lookup] = new_key
       return new_key
     return None
@@ -235,11 +237,16 @@ class Key:
     return int(self.data['color'])
 
   def execute_up(self):
-    ran = self.executor.execute(self.up_command(), self)
-    return ran
+    if self.up_command() != None and self.up_command() != "":
+      ran = self.executor.execute(self.up_command(), self)
+      return ran
+    return False
   
   def execute_down(self):
-    ran = self.executor.execute(self.down_command(), self)
+    if self.down_command() != None and self.down_command() != "":
+      ran = self.executor.execute(self.down_command(), self)
+      return ran
+    return False
 
 
 class Executor:
@@ -265,7 +272,8 @@ class Executor:
         binder.new_binding(key)
         binder.set_executing()
       else:
-        os.system(command)
+        args = shlex.split(command)
+        pid = subprocess.Popen(args).pid
 
 parser = argparse.ArgumentParser(description='Start the binding service')
 parser.add_argument('--bindings-file', type=str, help='the location of the stored bindings file', default="bindings.json")
