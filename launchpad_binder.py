@@ -34,11 +34,11 @@ class Util:
     color = colors[(ev.x,ev.y)]
     lp.LedAllOn(0)
     return color
-  
+
   def draw_color_page(self, lp, starting_color = 0):
     x_range = range(0,8)
     y_range = range(1,9)
-    color = starting_color 
+    color = starting_color
     colors = {}
     for x in x_range:
       for y in y_range:
@@ -65,7 +65,7 @@ class Event:
     self.x = raw_event[0]
     self.y = raw_event[1]
     self.action_code = raw_event[2]
-  
+
   def print(self):
     print(f"{self.x}, {self.y}: {self.is_down()}")
 
@@ -95,13 +95,13 @@ class LaunchBinder:
     self.executor = Executor(self)
     self.state = LaunchBinder.EXECUTE
     self.config_path = config_path
-  
+
   def set_recording(self):
     self.state = LaunchBinder.RECORD
 
   def is_recording(self):
     return self.state == LaunchBinder.RECORD
-  
+
   def set_executing(self):
     self.state = LaunchBinder.EXECUTE
 
@@ -120,14 +120,18 @@ class LaunchBinder:
     color = self.util.choose_color(self.lp)
     if color != None:
       color = key.update_color(color)
+    self.all_keys_color_changed()
 
+  def all_keys_color_changed(self):
+    for key in self.keys.values():
+      key.color_changed = True
 
   def load_bindings(self):
     with open(self.config_path, "r") as read_file:
       self.data = json.load(read_file)
     for binding, value in self.data['bindings'].items():
       self.keys[binding] = Key(binding, value, self.executor)
-  
+
   def save_bindings(self, file_path = None):
     if (file_path == None):
       file_path = self.config_path
@@ -148,7 +152,7 @@ class LaunchBinder:
   def update(self):
     for key in self.keys.values():
       key.smart_execute()
-      self.lp.LedCtrlXYByCode(key.x(), key.y(), key.color())
+      key.update(self.lp)
     return
 
   def process_input(self):
@@ -204,17 +208,18 @@ class Key:
     self.state = Key.UP
     self.changed = False
     self.last_released = True
-  
+    self.color_changed = True
+
   def to_json(self):
     return json.dumps(self.data)
 
   def __str__(self):
     return f"{self._x},{self._y}:\t{self.data['down_command']}\t{self.data['color']}"
-  
+
   def on_down(self):
     self.state = Key.DOWN
     self.changed = True
-  
+
   def on_up(self):
     self.state = Key.UP
     self.changed = True
@@ -226,6 +231,11 @@ class Key:
         self.execute_up()
       if self.state == Key.DOWN:
         self.execute_down()
+
+  def update(self, lp):
+    if self.color_changed:
+      lp.LedCtrlXYByCode(self.x(), self.y(), self.color())
+      self.color_changed = False
 
   def x(self):
     return self._x
@@ -242,6 +252,7 @@ class Key:
 
   def update_color(self, color):
     self.data['color'] = color
+    self.color_changed = True
 
   def command(self):
     return self.data['down_command']
@@ -253,7 +264,7 @@ class Key:
     if 'up_command' in self.data:
       return self.data['up_command']
     return None
-  
+
   def color(self):
     return int(self.data['color'])
 
@@ -262,7 +273,7 @@ class Key:
       ran = self.executor.execute(self.up_command(), self)
       return ran
     return False
-  
+
   def execute_down(self):
     if self.down_command() != None and self.down_command() != "":
       ran = self.executor.execute(self.down_command(), self)
@@ -308,5 +319,3 @@ except:
   binder.save_bindings("temp.json")
   print("exception occurred, attempted to store bindings to temp.json")
   raise
-
-    
