@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import launchpad_py
 import wx
 import json
