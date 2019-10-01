@@ -81,20 +81,24 @@ class Event:
   def is_released(self):
     return self.action_code == 0
 
-
-quit = False
-
 class LaunchBinder:
   EXECUTE = "execute"
   RECORD = "record"
-  def __init__(self, config_path):
+  def __init__(self, config_path, lp = None):
+    if lp != None:
+      self.lp = lp
+      self.shared_lp = True
+    else:
     self.lp = launchpad_py.LaunchpadMk2()
+      self.shared_lp = False
     self.data = None
     self.keys = {}
     self.util = Util()
     self.executor = Executor(self)
     self.state = LaunchBinder.EXECUTE
     self.config_path = config_path
+    self.quit = False
+    self.level = 0
 
   def set_recording(self):
     self.state = LaunchBinder.RECORD
@@ -131,6 +135,7 @@ class LaunchBinder:
       self.data = json.load(read_file)
     for binding, value in self.data['bindings'].items():
       self.keys[binding] = Key(binding, value, self.executor)
+    print(f"loaded {len(self.data['bindings'])} keys")
 
   def save_bindings(self, file_path = None):
     if (file_path == None):
@@ -177,24 +182,28 @@ class LaunchBinder:
       return new_key
     return None
 
+  def override_key(self, key):
+    self.keys[key.lookup()] = key
+
   def run(self):
     opened = self.lp.Open()
     if not opened:
       return False
 
     self.reset_start()
-    global quit
-    while not quit:
+    while not self.quit:
       self.process_input()
       self.update()
     self.cleanup()
 
   def reset_start(self):
     self.lp.LedAllOn(colors["black"])
+    self.all_keys_color_changed()
 
   def cleanup(self):
     self.lp.LedAllOn(colors["black"])
     self.lp.ButtonFlush()
+    if not self.shared_lp:
     self.lp.Close()
 
 class Key:
@@ -209,6 +218,9 @@ class Key:
     self.changed = False
     self.last_released = True
     self.color_changed = True
+
+  def lookup(self):
+    return f"{self._x}{self._y}"
 
   def to_json(self):
     return json.dumps(self.data)
@@ -280,24 +292,65 @@ class Key:
       return ran
     return False
 
+class Commands:
+  def __init__(self, binder):
+    self.binder = binder
+
+  def quit(self, command, key):
+    print("quitting..")
+    self.binder.quit = True
+
+  def save(self, command, key):
+    self.binder.save_bindings()
+
+  def record(self, command, key):
+    self.binder.set_recording()
+  
+  def load(self, command, key):
+    print("load...", command)
+    words = command.split(" ")
+    if len(words) != 2:
+      return None
+    bindings_file = words[1]
+    binder = LaunchBinder(bindings_file, self.binder.lp)
+    binder.level = self.binder.level + 1
+    binder.load_bindings()
+    release_to_quit_key = Key(key.lookup(), { "down_command":"", "up_command": key.up_command(), "color": "10"}, binder.executor)
+    binder.override_key(release_to_quit_key)
+    binder.run()
+    self.binder.reset_start()
+    print("sub binder finished...")
 
 class Executor:
   def __init__(self, binder):
     self.binder = binder
+    commands = Commands(binder)
+    self.command_dict = {
+      "quit": commands.quit,
+      "save": commands.save,
+      "record": commands.record,
+      "load": commands.load
+    }
+
+  def lookup_command(self, command):
+    words = command.split(" ")
+    if len(words) == 0:
+      return None
+    
+    command = words[0]
+    if not command in self.command_dict:
+      return None
+
+    return self.command_dict[command]
 
   def execute(self, command, key):
-    global quit
+    quit = self.binder.quit
     if command == None:
       return
 
-    if command == "quit":
-      print("quitting..")
-      quit = True
-    elif command == "save":
-      binder.save_bindings()
-    elif command == "record":
-      print("recording..")
-      binder.set_recording()
+    action = self.lookup_command(command)
+    if action != None:
+      action(command, key)
     else:
       if binder.is_recording():
         print("binding..")
