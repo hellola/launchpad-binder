@@ -89,7 +89,7 @@ class LaunchBinder:
       self.lp = lp
       self.shared_lp = True
     else:
-    self.lp = launchpad_py.LaunchpadMk2()
+      self.lp = launchpad_py.LaunchpadMk2()
       self.shared_lp = False
     self.data = None
     self.keys = {}
@@ -204,7 +204,7 @@ class LaunchBinder:
     self.lp.LedAllOn(colors["black"])
     self.lp.ButtonFlush()
     if not self.shared_lp:
-    self.lp.Close()
+      self.lp.Close()
 
 class Key:
   UP = 0
@@ -340,14 +340,14 @@ class Executor:
     command = words[0]
     if not command in self.command_dict:
       return None
-
+      
     return self.command_dict[command]
 
   def execute(self, command, key):
     quit = self.binder.quit
     if command == None:
       return
-
+    
     action = self.lookup_command(command)
     if action != None:
       action(command, key)
