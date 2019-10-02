@@ -51,7 +51,8 @@ Load can be configured in two ways, when a `up_command` is provided it will over
 
 
 ### Alternatives:
-(LPHK)[https://github.com/nimaid/LPHK]
+[LPHK][3] is different in that it provides a GUI, along with a custom scripting language
 
 [1]: https://global.novationmusic.com/launch/launchpad
 [2]: https://github.com/FMMT666/launchpad.py
+[3]: https://github.com/nimaid/LPHK
