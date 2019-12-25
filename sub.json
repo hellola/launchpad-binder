@@ -1,0 +1,1 @@
+{ "bindings": { "88": {"down_command": "quit", "color": "10"},"87": {"down_command": "record", "color": "20"},"85": {"down_command": "save", "color": "30"},"76": {"down_command": "#new", "up_command": "echo \"new\"", "color": "17"}} }
